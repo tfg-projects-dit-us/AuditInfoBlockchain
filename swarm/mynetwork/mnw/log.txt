@@ -1,2 +1,0 @@
-Committed chaincode definition for chaincode 'smartcontract' on channel 'mychannel':
-Version: 1.0, Sequence: 1, Endorsement Plugin: escc, Validation Plugin: vscc, Approvals: [HlaMSP: true, QuironMSP: true, SasMSP: true, ViamedMSP: true]

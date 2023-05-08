@@ -1,1 +1,0 @@
-docker stack rm api_sdk
