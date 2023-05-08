@@ -1,0 +1,1 @@
+docker build --rm -t api_fabric_sdk:1.0 .
