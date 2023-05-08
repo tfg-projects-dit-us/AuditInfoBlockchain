@@ -1,0 +1,148 @@
+# Copyright IBM Corp. All Rights Reserved.
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+
+version: '3.7'
+
+volumes:
+  couchdb0:
+  peer0_sas:
+
+networks:
+  test:
+    external: true
+    name: mynetwork
+
+services:
+
+  couchdb0:
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      placement:
+         constraints:
+           - node.hostname == manager
+    container_name: couchdb0
+    image: couchdb:3.1.1
+    labels:
+      service: hyperledger-fabric
+    # Populate the COUCHDB_USER and COUCHDB_PASSWORD to set an admin user and password
+    # for CouchDB.  This will prevent CouchDB from operating in an "Admin Party" mode.
+    environment:
+      - COUCHDB_USER=admin
+      - COUCHDB_PASSWORD=adminpw
+    # Comment/Uncomment the port mapping if you want to hide/expose the CouchDB service,
+    # for example map it to utilize Fauxton User Interface in dev environments.
+    ports:
+      - "5984:5984"
+    networks:
+      - test
+
+  peer0_sas:
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      placement:
+         constraints:
+           - node.hostname == manager
+    container_name: peer0.sas.org.com
+    image: hyperledger/fabric-peer:latest
+    hostname: peer0.sas.org.com
+    labels:
+      service: hyperledger-fabric
+    environment:
+      - FABRIC_CFG_PATH=/etc/hyperledger/peercfg
+      - FABRIC_LOGGING_SPEC=INFO
+      #- CORE_VM_DOCKER_HOSTCONFIG_NETWORKMODE=mynetwork
+      #- FABRIC_LOGGING_SPEC=DEBUG
+      - CORE_PEER_TLS_ENABLED=true
+      - CORE_PEER_PROFILE_ENABLED=false
+      - CORE_PEER_TLS_CERT_FILE=/etc/hyperledger/fabric/tls/server.crt
+      - CORE_PEER_TLS_KEY_FILE=/etc/hyperledger/fabric/tls/server.key
+      - CORE_PEER_TLS_ROOTCERT_FILE=/etc/hyperledger/fabric/tls/ca.crt
+      # Peer specific variables
+      - CORE_PEER_ID=peer0.sas.org.com
+      - CORE_PEER_ADDRESS=peer0.sas.org.com:7051
+      - CORE_PEER_LISTENADDRESS=0.0.0.0:7051
+      - CORE_PEER_CHAINCODEADDRESS=peer0.sas.org.com:7052
+      - CORE_PEER_CHAINCODELISTENADDRESS=0.0.0.0:7052
+      - CORE_PEER_GOSSIP_BOOTSTRAP=peer0.sas.org.com:7051
+      - CORE_PEER_GOSSIP_EXTERNALENDPOINT=peer0.sas.org.com:7051
+      - CORE_PEER_LOCALMSPID=SasMSP
+      - CORE_PEER_MSPCONFIGPATH=/etc/hyperledger/fabric/msp
+      #- CORE_OPERATIONS_LISTENADDRESS=peer0.sas.org.com:9444
+      - CORE_METRICS_PROVIDER=prometheus
+      - CHAINCODE_AS_A_SERVICE_BUILDER_CONFIG={"peername":"peer0sas"}
+      - CORE_CHAINCODE_EXECUTETIMEOUT=300s
+      - CORE_LEDGER_STATE_STATEDATABASE=CouchDB
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS=couchdb0:5984
+      # The CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME and CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD
+      # provide the credentials for ledger to connect to CouchDB.  The username and password must
+      # match the username and password set for the associated CouchDB.
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME=admin
+      - CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD=adminpw
+    volumes:
+        - ../organizations/peerOrganizations/sas.org.com/peers/peer0.sas.org.com:/etc/hyperledger/fabric
+        - peer0_sas:/var/hyperledger/production
+
+    working_dir: /root
+    command: peer node start
+    ports:
+      - 172.16.17.11:7051:7051
+      - 172.16.17.11:9444:9444
+    networks:
+      - test
+    # Mappings defined in extra_hosts sections cause the addition of corresponding /etc/hosts entries inside containers.
+    extra_hosts:
+      - "orderer.org.com:172.16.17.11"
+      - "orderer2.org.com:172.16.17.12"
+      - "orderer3.org.com:172.16.17.13"
+      - "peer0.quiron.org.com:172.16.17.12"
+      - "peer0.hla.org.com:172.16.17.12"
+      - "peer0.viamed.org.com:172.16.17.13"
+
+
+  cli:
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      placement:
+         constraints:
+           - node.hostname == manager
+    container_name: cli
+    image: hyperledger/fabric-tools:latest
+    hostname: cli
+    labels:
+      service: hyperledger-fabric
+    tty: true
+    stdin_open: true
+    environment:
+      - GOPATH=/opt/gopath
+      - FABRIC_LOGGING_SPEC=INFO
+      - FABRIC_CFG_PATH=/etc/hyperledger/peercfg
+      #- FABRIC_LOGGING_SPEC=DEBUG
+    working_dir: /opt/gopath/src/github.com/hyperledger/fabric/peer
+    command: /bin/bash
+    volumes:
+        - ../organizations:/opt/gopath/src/github.com/hyperledger/fabric/peer/organizations
+        - ../scripts:/opt/gopath/src/github.com/hyperledger/fabric/peer/scripts/
+    networks:
+      - test
+    extra_hosts:
+      - "orderer.org.com:172.16.17.11"
+      - "orderer2.org.com:172.16.17.12"
+      - "orderer3.org.com:172.16.17.13"
+      - "peer0.sas.org.com:172.16.17.11"
+      - "peer0.quiron.org.com:172.16.17.12"
+      - "peer0.hla.org.com:172.16.17.12"
+      - "peer0.viamed.org.com:172.16.17.13"
